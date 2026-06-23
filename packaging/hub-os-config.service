@@ -1,0 +1,18 @@
+[Unit]
+Description=Alby Hub OS configuration service
+Documentation=https://github.com/getAlby/hub-os-config
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/hub-os-config run
+Restart=on-failure
+RestartSec=5
+# Runs as root: needs nmcli, write access to /opt/albyhub/.env, and reboot.
+User=root
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

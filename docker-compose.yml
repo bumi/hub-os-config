@@ -1,0 +1,13 @@
+# Local run/test for hub-os-config. Build and start:
+#   docker compose up --build
+# Then open:
+#   http://localhost:8080   (Setup Mode UI — the captive-portal first-run flow)
+#   http://localhost:8090   (Normal Mode UI — shown after a successful connect)
+services:
+  hub-os-config:
+    build: .
+    container_name: hub-os-config
+    ports:
+      - "8080:80"   # Setup Mode
+      - "8090:8090" # Normal Mode
+    restart: unless-stopped

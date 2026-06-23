@@ -1,0 +1,30 @@
+# hub-os-config configuration.
+# Copy to /etc/hub-os-config/config.toml to override defaults. Any field left
+# out keeps its built-in default (shown below).
+
+[access_point]
+# SSID of the open setup access point.
+ssid = "albyhub-setup"
+# 2.4GHz channel (1-14).
+channel = 6
+# Gateway IP for the AP network; also the captive-portal address.
+gateway_ip = "192.168.4.1"
+
+[web]
+# Port the config UI listens on once the device is online (Normal Mode).
+# Must not collide with Alby Hub itself (which defaults to 8080).
+normal_port = 8090
+
+[connectivity]
+primary_url = "https://getalby.com/api/internal/info"
+fallback_url = "https://www.google.com/generate_204"
+probe_timeout_seconds = 5
+# How long to keep retrying after connectivity was established before
+# reverting to Setup Mode (hysteresis). 1800s = 30 minutes.
+retry_window_seconds = 1800
+
+[paths]
+# Alby Hub environment file edited by the Advanced section.
+albyhub_env = "/opt/albyhub/.env"
+# Where runtime state is persisted.
+state_file = "/var/lib/hub-os-config/state.json"

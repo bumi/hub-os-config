@@ -1,0 +1,54 @@
+name: build
+
+on:
+  push:
+    branches: [master, main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build (armv6 / armv7 / arm64)
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: bash build/build.sh "$VERSION"
+
+      - name: Attach armv6 build
+        uses: actions/upload-artifact@v4
+        with:
+          name: hub-os-config-armv6
+          path: dist/hub-os-config-armv6
+          if-no-files-found: error
+
+      - name: Attach armv7 build
+        uses: actions/upload-artifact@v4
+        with:
+          name: hub-os-config-armv7
+          path: dist/hub-os-config-armv7
+          if-no-files-found: error
+
+      - name: Attach arm64 build
+        uses: actions/upload-artifact@v4
+        with:
+          name: hub-os-config-arm64
+          path: dist/hub-os-config-arm64
+          if-no-files-found: error

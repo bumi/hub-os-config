@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light" />
+  <title>Alby Hub Setup</title>
+  <!-- No external resources: the page is fully self-contained and embedded in
+       the binary, so it works in Setup Mode with no internet. -->
+  <style>
+    :root {
+      --accent: #FFD028;
+      --accent-ink: #1C1A17;
+      --radius: 18px;
+      --ink: #1C1A17;
+      --muted: #6B655A;
+      --muted-2: #A39B8C;
+      --muted-3: #8A8378;
+      --hairline: #F0EBDE;
+      --border: #ECE7DA;
+      --border-2: #E2DCCF;
+      --sel-bg: #FCF8EE;
+      --bar-off: #D6CFC0;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      /* System fonts only — no web font is downloaded. 'Outfit' is used only
+         if the device happens to have it installed locally. */
+      font-family: 'Outfit', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 20px;
+      background: #FAF6EC;
+      background-image:
+        radial-gradient(circle at 14% -6%, color-mix(in srgb, var(--accent) 32%, transparent), transparent 40%),
+        radial-gradient(circle at 90% 106%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 44%);
+    }
+    input, button { font-family: inherit; }
+
+    @keyframes fadeUp { 0% { opacity: 0; transform: translateY(10px); } 100% { opacity: 1; transform: none; } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes pulsering { 0% { transform: scale(.65); opacity: .55; } 100% { transform: scale(1.45); opacity: 0; } }
+    @keyframes dotbounce { 0%, 75%, 100% { opacity: .25; transform: translateY(0); } 38% { opacity: 1; transform: translateY(-4px); } }
+    @keyframes popin { 0% { transform: scale(.5); opacity: 0; } 60% { transform: scale(1.08); } 100% { transform: scale(1); opacity: 1; } }
+    @keyframes overlayin { 0% { opacity: 0; } 100% { opacity: 1; } }
+
+    .card {
+      width: 100%;
+      max-width: 860px;
+      background: #fff;
+      border-radius: calc(var(--radius) + 8px);
+      padding: 28px 30px;
+      box-shadow: 0 24px 60px -22px rgba(60, 48, 12, .28), 0 2px 8px rgba(60, 48, 12, .06);
+      position: relative;
+    }
+
+    .header { text-align: center; }
+    .logo {
+      width: 54px; height: 54px; margin: 0 auto;
+      border-radius: var(--radius);
+      background: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 8px 18px -7px color-mix(in srgb, var(--accent) 80%, #000);
+    }
+    .title { font-size: 22px; font-weight: 700; color: var(--ink); letter-spacing: -.02em; margin: 14px 0 6px; }
+    .subtitle { color: var(--muted); font-size: 14px; line-height: 1.5; max-width: 420px; margin: 0 auto; }
+
+    .error {
+      display: none;
+      margin: 16px auto 0;
+      max-width: 560px;
+      padding: 11px 14px;
+      background: #FCEDED;
+      border: 1.5px solid #F1C9C9;
+      border-radius: calc(var(--radius) - 5px);
+      color: #9A3030;
+      font-size: 13px;
+      line-height: 1.45;
+      text-align: center;
+    }
+    .error.show { display: block; }
+
+    .divider { height: 1px; background: var(--hairline); margin: 22px 0 18px; }
+
+    .cols { display: flex; flex-wrap: wrap; gap: 30px; align-items: flex-start; }
+    .col { flex: 1 1 310px; min-width: 0; }
+
+    .step { display: flex; align-items: center; gap: 11px; margin-bottom: 14px; }
+    .step-num {
+      width: 25px; height: 25px; flex: none; border-radius: 50%;
+      background: var(--accent); color: var(--accent-ink);
+      font-size: 12.5px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .step-title { font-size: 16px; font-weight: 700; color: var(--ink); letter-spacing: -.01em; }
+    .step-sub { font-size: 12px; color: var(--muted-2); }
+
+    .label-row { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
+    .field-label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+    .spinner {
+      width: 13px; height: 13px;
+      border: 2px solid var(--border); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin .7s linear infinite;
+    }
+
+    .net-list { display: flex; flex-direction: column; gap: 7px; }
+    .net {
+      width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 11px 13px; border: 1.5px solid var(--border);
+      border-radius: calc(var(--radius) - 5px); background: #fff;
+      cursor: pointer; text-align: left; transition: all .15s ease;
+    }
+    .net:hover { border-color: var(--accent); }
+    .net.selected { border-color: var(--accent); background: var(--sel-bg); }
+    .net-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .net-dot {
+      width: 18px; height: 18px; flex: none; border-radius: 50%;
+      border: 2px solid var(--bar-off); background: #fff;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .net.selected .net-dot { border-color: var(--accent); background: var(--accent); }
+    .net-dot svg { display: none; }
+    .net.selected .net-dot svg { display: block; }
+    .net-name { font-weight: 600; font-size: 14px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .net-meta { display: flex; align-items: center; gap: 4px; margin-top: 1px; font-size: 11.5px; color: var(--muted-2); }
+    .bars { display: flex; align-items: flex-end; gap: 2px; height: 15px; flex: none; }
+    .bar { width: 4px; border-radius: 2px; }
+    .bar.on { background: var(--ink); }
+    .bar.off { background: var(--bar-off); }
+    .empty { padding: 16px 4px; font-size: 13px; color: var(--muted-2); text-align: center; }
+
+    .link-btn {
+      width: 100%; margin-top: 9px; padding: 7px;
+      background: transparent; color: var(--muted-2);
+      font-weight: 600; font-size: 13px; border: none; cursor: pointer;
+    }
+    .link-btn:hover { color: var(--ink); }
+
+    .pw-block { animation: fadeUp .3s ease both; margin-top: 14px; }
+    .pw-label { font-size: 12.5px; font-weight: 600; color: var(--muted); margin-bottom: 8px; }
+    .pw-row { display: flex; gap: 7px; align-items: stretch; }
+    .input {
+      width: 100%; padding: 12px 14px; border: 1.5px solid var(--border-2);
+      border-radius: calc(var(--radius) - 5px); font-size: 16px; color: var(--ink);
+      outline: none; transition: border-color .15s ease;
+    }
+    .input:focus { border-color: var(--accent); }
+    .pw-input { flex: 1; min-width: 0; }
+    .pw-toggle {
+      padding: 0 14px; border: 1.5px solid var(--border-2);
+      border-radius: calc(var(--radius) - 5px); background: #fff;
+      color: var(--muted); font-weight: 600; font-size: 13.5px; cursor: pointer; flex: none;
+    }
+    .pw-toggle:hover { border-color: var(--accent); color: var(--ink); }
+
+    .impl-row { display: flex; gap: 9px; }
+    .impl {
+      position: relative; flex: 1; min-width: 0;
+      display: flex; flex-direction: column; gap: 9px; padding: 14px;
+      border: 1.5px solid var(--border); border-radius: calc(var(--radius) - 3px);
+      background: #fff; cursor: pointer; text-align: left; transition: all .15s ease;
+    }
+    .impl:hover { border-color: var(--accent); }
+    .impl.selected { border-color: var(--accent); background: var(--sel-bg); }
+    .impl-check {
+      position: absolute; top: 9px; right: 9px; width: 17px; height: 17px; border-radius: 50%;
+      background: var(--accent); display: none; align-items: center; justify-content: center;
+    }
+    .impl.selected .impl-check { display: flex; }
+    .impl-icon { width: 34px; height: 34px; border-radius: 10px; background: #F3EFE4; display: flex; align-items: center; justify-content: center; }
+    .impl.selected .impl-icon { background: var(--accent); }
+    .impl-name { font-size: 14.5px; font-weight: 700; color: var(--ink); }
+    .impl-desc { font-size: 12px; color: var(--muted-3); line-height: 1.4; margin-top: 2px; }
+
+    .adv-toggle {
+      margin-top: 14px; padding: 4px 0; display: flex; align-items: center; gap: 5px;
+      background: transparent; border: none; cursor: pointer; color: var(--muted-2);
+    }
+    .adv-toggle:hover { color: var(--muted); }
+    .adv-toggle .chev { transition: transform .2s ease; }
+    .adv-toggle.open .chev { transform: rotate(180deg); }
+    .adv-toggle-label { font-size: 12.5px; font-weight: 600; }
+    .adv-panel { animation: fadeUp .3s ease both; padding-top: 14px; }
+    .adv-label { display: block; font-size: 12.5px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+    .adv-label.mt { margin: 12px 0 6px; }
+    .adv-panel .input { font-size: 14px; padding: 11px 14px; }
+
+    .footer-area { max-width: 440px; margin: 22px auto 0; }
+    .btn-primary {
+      width: 100%; padding: 15px; background: var(--accent); color: var(--accent-ink);
+      font-weight: 600; font-size: 16px; border: none; border-radius: var(--radius);
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: filter .15s ease, opacity .15s ease;
+    }
+    .btn-primary:hover { filter: brightness(.94); }
+    .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+    .hint { font-size: 12px; color: var(--muted-2); line-height: 1.5; margin: 10px 0 0; text-align: center; }
+    .powered { text-align: center; margin-top: 18px; font-size: 12px; color: #BBB3A2; letter-spacing: .04em; }
+
+    .hidden { display: none !important; }
+
+    .overlay {
+      position: fixed; inset: 0; background: rgba(28, 22, 12, .42); backdrop-filter: blur(3px);
+      display: flex; align-items: center; justify-content: center; padding: 22px;
+      animation: overlayin .25s ease both; z-index: 50;
+    }
+    .overlay-card {
+      width: 100%; max-width: 380px; background: #fff;
+      border-radius: calc(var(--radius) + 8px); padding: 40px 30px; text-align: center;
+      box-shadow: 0 30px 70px -20px rgba(0, 0, 0, .4);
+    }
+    .pulse-wrap { position: relative; width: 96px; height: 96px; margin: 0 auto 22px; }
+    .pulse-ring { position: absolute; inset: 0; border-radius: 50%; background: var(--accent); opacity: .35; animation: pulsering 1.8s ease-out infinite; }
+    .pulse-core { position: absolute; inset: 16px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; }
+    .overlay-title { font-size: 21px; font-weight: 700; color: var(--ink); margin: 0; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .dots { display: inline-flex; gap: 4px; align-items: flex-end; padding-bottom: 4px; }
+    .dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); animation: dotbounce 1.2s infinite; }
+    .dots i:nth-child(2) { animation-delay: .18s; }
+    .dots i:nth-child(3) { animation-delay: .36s; }
+    .overlay-text { color: var(--muted); font-size: 15px; line-height: 1.55; max-width: 300px; margin: 12px auto 0; }
+    .check-circle { width: 74px; height: 74px; margin: 0 auto; border-radius: 50%; background: #16B364; display: flex; align-items: center; justify-content: center; animation: popin .45s cubic-bezier(.34, 1.56, .64, 1) both; }
+    .success-title { font-size: 24px; font-weight: 700; color: var(--ink); letter-spacing: -.02em; margin: 20px 0 9px; }
+    .reset-btn { margin-top: 12px; padding: 8px; background: transparent; border: none; color: var(--muted-2); font-size: 14px; font-weight: 500; cursor: pointer; }
+    .reset-btn:hover { color: var(--ink); }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="header">
+      <div class="logo">
+        <svg width="28" height="28" viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6z" fill="#1C1A17" /></svg>
+      </div>
+      <h1 class="title">Welcome to Alby Hub</h1>
+      <p class="subtitle">Let's get you online and tune how your Hub runs. Set it up below, then connect.</p>
+    </div>
+
+    <div class="error" id="error"></div>
+
+    <div class="divider"></div>
+
+    <div class="cols">
+      <!-- Step 1: Network -->
+      <div class="col">
+        <div class="step">
+          <span class="step-num">1</span>
+          <div>
+            <div class="step-title">Network</div>
+            <div class="step-sub">How your Hub gets online</div>
+          </div>
+        </div>
+
+        <div class="label-row">
+          <span class="field-label">Choose a WiFi network</span>
+          <span class="spinner hidden" id="scan-spinner"></span>
+        </div>
+
+        <div class="net-list" id="networks"></div>
+        <button class="link-btn" id="rescan" type="button">Rescan networks</button>
+
+        <div class="pw-block hidden" id="pw-block">
+          <div class="pw-label">Password for &ldquo;<span id="pw-name"></span>&rdquo;</div>
+          <div class="pw-row">
+            <input class="input pw-input" id="pw-input" type="password" placeholder="Network password"
+                   autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+            <button class="pw-toggle" id="pw-toggle" type="button">Show</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: Alby Hub -->
+      <div class="col">
+        <div class="step">
+          <span class="step-num">2</span>
+          <div>
+            <div class="step-title">Alby Hub</div>
+            <div class="step-sub">How your Hub handles Lightning</div>
+          </div>
+        </div>
+
+        <div class="field-label" style="margin-bottom:9px;">Lightning implementation</div>
+        <div class="impl-row">
+          <button class="impl selected" id="impl-ldk" type="button" data-backend="LDK">
+            <span class="impl-check">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4 10-11" stroke="#1C1A17" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            </span>
+            <span class="impl-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6z" fill="#1C1A17" /></svg>
+            </span>
+            <div>
+              <div class="impl-name">Lightning</div>
+              <div class="impl-desc">Your own node, full self-custody.</div>
+            </div>
+          </button>
+          <button class="impl" id="impl-bark" type="button" data-backend="BARK">
+            <span class="impl-check">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4 10-11" stroke="#1C1A17" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            </span>
+            <span class="impl-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="4" rx="2" fill="#1C1A17" /><rect x="4" y="10" width="16" height="4" rx="2" fill="#1C1A17" /><rect x="4" y="16" width="16" height="4" rx="2" fill="#1C1A17" /></svg>
+            </span>
+            <div>
+              <div class="impl-name">Bark</div>
+              <div class="impl-desc">Shared Ark liquidity, cheaper to start.</div>
+            </div>
+          </button>
+        </div>
+
+        <button class="adv-toggle" id="adv-toggle" type="button">
+          <span class="adv-toggle-label">Advanced settings</span>
+          <svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        </button>
+        <div class="adv-panel hidden" id="adv-panel">
+          <label class="adv-label" for="relay">Relay URL</label>
+          <input class="input" id="relay" placeholder="wss://relay.getalby.com/v1" autocapitalize="off" autocorrect="off" spellcheck="false" />
+          <label class="adv-label mt" for="esplora">Esplora URL</label>
+          <input class="input" id="esplora" placeholder="https://mempool.space/api" autocapitalize="off" autocorrect="off" spellcheck="false" />
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-area">
+      <button class="btn-primary" id="connect" type="button" disabled>
+        Connect &amp; restart
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="#1C1A17" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      </button>
+      <p class="hint">Your Hub will save these settings, restart, and join the network. Takes up to a minute.</p>
+      <div class="powered">Powered by Alby</div>
+    </div>
+  </main>
+
+  <!-- Connecting overlay -->
+  <div class="overlay hidden" id="overlay-connecting">
+    <div class="overlay-card">
+      <div class="pulse-wrap">
+        <div class="pulse-ring"></div>
+        <div class="pulse-core">
+          <svg width="32" height="32" viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6z" fill="#1C1A17" /></svg>
+        </div>
+      </div>
+      <h2 class="overlay-title">
+        Connecting
+        <span class="dots"><i></i><i></i><i></i></span>
+      </h2>
+      <p class="overlay-text" id="connecting-text"></p>
+    </div>
+  </div>
+
+  <!-- Success overlay -->
+  <div class="overlay hidden" id="overlay-success">
+    <div class="overlay-card">
+      <div class="check-circle">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4 10-11" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      </div>
+      <h2 class="success-title">Your Hub is online</h2>
+      <p class="overlay-text" id="success-text"></p>
+      <button class="btn-primary" id="open-hub" type="button" style="margin-top:26px;">
+        Open Alby Hub
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="#1C1A17" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      </button>
+      <button class="reset-btn" id="setup-other" type="button">Set up a different network</button>
+    </div>
+  </div>
+
+  <script>
+    "use strict";
+
+    const state = {
+      networks: [],
+      selected: null,   // { ssid, secured, signal }
+      password: "",
+      showPw: false,
+      scanning: false,
+      backend: "LDK",   // LDK | BARK
+      advancedOpen: false,
+      relay: "",
+      esplora: "",
+    };
+
+    const $ = (id) => document.getElementById(id);
+
+    const CHECK_SVG = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4 10-11" stroke="#1C1A17" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    const LOCK_SVG = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="2" fill="#A39B8C"/><path d="M8 11V8a4 4 0 0 1 8 0v3" stroke="#A39B8C" stroke-width="2"/></svg>';
+    const BAR_HEIGHTS = [7, 10, 13, 16];
+
+    // ---- API helpers ----
+    async function getJSON(url) {
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) throw new Error(res.status + " " + url);
+      return res.json();
+    }
+
+    function showError(msg) { const e = $("error"); e.textContent = msg; e.classList.add("show"); }
+    function hideError() { $("error").classList.remove("show"); }
+
+    // ---- network signal -> 1..4 bars ----
+    function strengthOf(signal) {
+      return Math.min(4, Math.max(1, Math.ceil((signal || 0) / 25)));
+    }
+
+    function renderNetworks() {
+      const list = $("networks");
+      list.innerHTML = "";
+      if (!state.scanning && state.networks.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = "No networks found.";
+        list.appendChild(empty);
+        return;
+      }
+      state.networks.forEach((n) => {
+        const selected = state.selected && state.selected.ssid === n.ssid;
+        const strength = strengthOf(n.signal);
+        const bars = BAR_HEIGHTS
+          .map((h, i) => `<span class="bar ${i < strength ? "on" : "off"}" style="height:${h}px"></span>`)
+          .join("");
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "net" + (selected ? " selected" : "");
+        btn.innerHTML =
+          '<div class="net-left">' +
+            '<span class="net-dot">' + CHECK_SVG + '</span>' +
+            '<div><div class="net-name"></div>' +
+              '<div class="net-meta">' + (n.secured ? LOCK_SVG : "") + '<span>' + (n.secured ? "Secured" : "Open") + '</span></div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="bars">' + bars + '</div>';
+        btn.querySelector(".net-name").textContent = n.ssid;
+        btn.addEventListener("click", () => selectNetwork(n));
+        list.appendChild(btn);
+      });
+    }
+
+    function selectNetwork(n) {
+      state.selected = n;
+      state.password = "";
+      state.showPw = false;
+      $("pw-input").value = "";
+      $("pw-input").type = "password";
+      $("pw-toggle").textContent = "Show";
+      renderNetworks();
+      updatePasswordBlock();
+      updateConnect();
+      if (n.secured) $("pw-input").focus();
+    }
+
+    function updatePasswordBlock() {
+      const block = $("pw-block");
+      if (state.selected && state.selected.secured) {
+        $("pw-name").textContent = state.selected.ssid;
+        block.classList.remove("hidden");
+      } else {
+        block.classList.add("hidden");
+      }
+    }
+
+    function canConnect() {
+      if (!state.selected) return false;
+      if (state.selected.secured) {
+        const n = state.password.trim().length;
+        return n >= 8 && n <= 63;
+      }
+      return true;
+    }
+
+    function updateConnect() { $("connect").disabled = !canConnect(); }
+
+    function updateImpl() {
+      $("impl-ldk").classList.toggle("selected", state.backend === "LDK");
+      $("impl-bark").classList.toggle("selected", state.backend === "BARK");
+    }
+
+    function updateAdvanced() {
+      $("adv-panel").classList.toggle("hidden", !state.advancedOpen);
+      $("adv-toggle").classList.toggle("open", state.advancedOpen);
+    }
+
+    // ---- scanning ----
+    async function scan() {
+      state.scanning = true;
+      $("scan-spinner").classList.remove("hidden");
+      try {
+        const nets = await getJSON("/api/networks");
+        state.networks = Array.isArray(nets) ? nets : [];
+        // Keep a valid selection if the chosen network is still in range.
+        if (state.selected && !state.networks.some((n) => n.ssid === state.selected.ssid)) {
+          state.selected = null;
+          updatePasswordBlock();
+          updateConnect();
+        }
+      } catch (e) {
+        showError("Couldn't scan for networks. Try rescanning.");
+      } finally {
+        state.scanning = false;
+        $("scan-spinner").classList.add("hidden");
+        renderNetworks();
+      }
+    }
+
+    // ---- initial load: prefill advanced + show last failure ----
+    async function loadConfig() {
+      try {
+        const cfg = await getJSON("/api/config");
+        state.relay = cfg.RELAY || "";
+        state.esplora = cfg.LDK_ESPLORA_SERVER || "";
+        state.backend = cfg.LN_BACKEND_TYPE === "BARK" ? "BARK" : "LDK";
+        $("relay").value = state.relay;
+        $("esplora").value = state.esplora;
+        updateImpl();
+      } catch (e) { /* defaults are fine */ }
+    }
+
+    async function loadStatus() {
+      try {
+        const st = await getJSON("/api/status");
+        const a = st.last_attempt;
+        if (a && a.result === "failed") {
+          const where = a.ssid ? ' for “' + a.ssid + '”' : "";
+          showError("Previous attempt" + where + " failed" + (a.reason ? ": " + a.reason : "") + ".");
+        }
+      } catch (e) { /* status is best-effort */ }
+    }
+
+    // ---- save + reboot ----
+    function overlayName() { return state.selected ? state.selected.ssid : "your network"; }
+
+    async function connect() {
+      hideError();
+      const advanced = { LN_BACKEND_TYPE: state.backend };
+      if (state.relay.trim()) advanced.RELAY = state.relay.trim();
+      if (state.esplora.trim()) advanced.LDK_ESPLORA_SERVER = state.esplora.trim();
+      const payload = { advanced };
+      if (state.selected) payload.wifi = { ssid: state.selected.ssid, password: state.password };
+
+      const hasWiFi = !!state.selected;
+
+      $("connect").disabled = true;
+      let res;
+      try {
+        res = await fetch("/api/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } catch (e) {
+        showError("Couldn't reach the device. Please try again.");
+        updateConnect();
+        return;
+      }
+      if (!res.ok) {
+        const msg = (await res.text()).trim();
+        showError(msg || "Saving failed. Please check your input.");
+        updateConnect();
+        return;
+      }
+      showConnecting(hasWiFi);
+      pollForResult(hasWiFi);
+    }
+
+    function showConnecting(hasWiFi) {
+      $("connecting-text").textContent = hasWiFi
+        ? "Verifying the password for “" + overlayName() + "” and connecting. This page may disconnect for a moment."
+        : "Saving your settings and restarting. This page will reconnect in about a minute.";
+      $("overlay-connecting").classList.remove("hidden");
+    }
+
+    // Once the connection actually drops, we can't tell from here whether the
+    // join succeeded — so give honest guidance covering both outcomes. The poll
+    // upgrades this to success (if the Hub becomes reachable again) or to a
+    // failure (if the setup AP returns with a recorded error).
+    function setConnectingGuidance() {
+      $("connecting-text").textContent =
+        "Your Hub is joining “" + overlayName() + "”. If the password was wrong you'll return here to try again — " +
+        "otherwise reconnect your device to “" + overlayName() + "” and open Alby Hub once it's back (up to a minute).";
+    }
+
+    // The device drops the AP/connection to verify the password (single radio).
+    // We watch for the drop, then: if the Hub becomes reachable and online ->
+    // success (it has finished restarting); if the setup AP returns with a
+    // recorded failure -> wrong password, let the user retry. In the captive
+    // flow a *successful* join can't be observed (the AP is gone for good), so
+    // we stay on the guidance message above.
+    function pollForResult(hasWiFi) {
+      let sawDrop = false;
+      let announced = false;
+      const start = Date.now();
+      const timer = setInterval(async () => {
+        if (Date.now() - start > 120000) { clearInterval(timer); return; }
+        try {
+          const st = await getJSON("/api/status");
+          if (st.online) { clearInterval(timer); showSuccess(); return; }
+          if (hasWiFi && sawDrop && st.mode === "setup" &&
+              st.last_attempt && st.last_attempt.result === "failed") {
+            clearInterval(timer);
+            showFailure(st.last_attempt);
+          }
+        } catch (e) {
+          sawDrop = true; // connection dropped -> the join is under way
+          if (hasWiFi && !announced) { announced = true; setConnectingGuidance(); }
+        }
+      }, 3000);
+    }
+
+    function showFailure(attempt) {
+      $("overlay-connecting").classList.add("hidden");
+      const where = attempt && attempt.ssid ? "“" + attempt.ssid + "”" : "that network";
+      const why = attempt && attempt.reason ? " — " + attempt.reason : "";
+      showError("Couldn't connect to " + where + why + ". Check the password and try again.");
+      updateConnect();
+      const pw = $("pw-input");
+      if (pw && !$("pw-block").classList.contains("hidden")) { pw.focus(); pw.select(); }
+    }
+
+    function showSuccess() {
+      $("success-text").textContent =
+        "Connected to “" + overlayName() + "” and back online. You can open Alby Hub now.";
+      $("overlay-connecting").classList.add("hidden");
+      $("overlay-success").classList.remove("hidden");
+    }
+
+    function reset() {
+      $("overlay-success").classList.add("hidden");
+      $("overlay-connecting").classList.add("hidden");
+      state.selected = null;
+      state.password = "";
+      $("pw-input").value = "";
+      updatePasswordBlock();
+      updateConnect();
+      scan();
+    }
+
+    // ---- wire up static handlers ----
+    function bind() {
+      $("rescan").addEventListener("click", scan);
+
+      $("pw-input").addEventListener("input", (e) => {
+        state.password = e.target.value;
+        updateConnect();
+      });
+      $("pw-toggle").addEventListener("click", () => {
+        state.showPw = !state.showPw;
+        $("pw-input").type = state.showPw ? "text" : "password";
+        $("pw-toggle").textContent = state.showPw ? "Hide" : "Show";
+      });
+
+      $("impl-ldk").addEventListener("click", () => { state.backend = "LDK"; updateImpl(); });
+      $("impl-bark").addEventListener("click", () => { state.backend = "BARK"; updateImpl(); });
+
+      $("adv-toggle").addEventListener("click", () => {
+        state.advancedOpen = !state.advancedOpen;
+        updateAdvanced();
+      });
+      $("relay").addEventListener("input", (e) => { state.relay = e.target.value; });
+      $("esplora").addEventListener("input", (e) => { state.esplora = e.target.value; });
+
+      $("connect").addEventListener("click", connect);
+      $("open-hub").addEventListener("click", () => {
+        window.location.href = window.location.protocol + "//" + window.location.hostname + ":8080";
+      });
+      $("setup-other").addEventListener("click", reset);
+    }
+
+    async function init() {
+      bind();
+      await loadConfig();
+      await loadStatus();
+      await scan();
+    }
+
+    init();
+  </script>
+</body>
+</html>

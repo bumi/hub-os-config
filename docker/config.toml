@@ -1,0 +1,5 @@
+# Local Docker test config. A container has no 192.168.4.1 AP address, so bind
+# Setup Mode to all interfaces instead. Everything else uses the built-in
+# defaults (Normal Mode still serves on :8090).
+[access_point]
+gateway_ip = "0.0.0.0"
