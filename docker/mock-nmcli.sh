@@ -23,8 +23,8 @@ case "$*" in
     exit 0 ;;
 esac
 
-# Activating "FailNet" fails, to demo the wrong-password / retry path.
-if [ "$1" = "connection" ] && [ "$2" = "up" ] && [ "$3" = "FailNet" ]; then
+# Connecting to "FailNet" fails, to demo the wrong-password / retry path.
+if [ "$1" = "device" ] && [ "$2" = "wifi" ] && [ "$3" = "connect" ] && [ "$4" = "FailNet" ]; then
   echo "Error: Connection activation failed: Secrets were required but not provided." >&2
   exit 4
 fi

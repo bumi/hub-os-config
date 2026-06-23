@@ -23,12 +23,14 @@ One long-lived systemd service runs a two-mode state machine:
 
 A supervisor monitors internet reachability (probing `getalby.com` with a Google
 fallback). If a previously-online device loses connectivity for longer than the
-retry window (default 30 min), it reverts to Setup Mode; a bad WiFi change
-self-heals the same way on the next boot.
+retry window (default 30 min), it reverts to Setup Mode.
 
-WiFi credentials are stored by NetworkManager. The Advanced section edits Alby
-Hub's `/opt/albyhub/.env` (`RELAY`, `LDK_ESPLORA_SERVER`, `LN_BACKEND_TYPE`),
-preserving all other keys. Every save triggers a reboot to apply changes.
+WiFi credentials are verified before they are committed: the device briefly
+leaves the AP to test the password, and a wrong one returns you to the portal to
+try again. Credentials are stored by NetworkManager, which reconnects
+automatically on boot. The Advanced section edits Alby Hub's `/opt/albyhub/.env`
+(`RELAY`, `LDK_ESPLORA_SERVER`, `LN_BACKEND_TYPE`), preserving all other keys.
+Every successful save reboots to apply the changes.
 
 ## Build
 

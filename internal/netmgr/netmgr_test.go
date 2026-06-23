@@ -128,36 +128,49 @@ func TestScanNetworksInvokesNmcliAndParses(t *testing.T) {
 	}
 }
 
-func TestSaveAndConnectSecuredCreatesProfileWithPSK(t *testing.T) {
+func TestConnectWiFiSecuredUsesDeviceConnect(t *testing.T) {
 	r := &fakeRunner{}
 	nm := testNM(r)
 
-	if err := nm.SaveAndConnect(context.Background(), "HomeWiFi", "supersecret"); err != nil {
-		t.Fatalf("SaveAndConnect: %v", err)
+	if err := nm.ConnectWiFi(context.Background(), "HomeWiFi", "supersecret"); err != nil {
+		t.Fatalf("ConnectWiFi: %v", err)
 	}
-	if !r.calledWith("connection add") {
-		t.Error("expected a 'connection add'")
+	if !r.calledWith("device wifi connect") || !r.calledWith("HomeWiFi") {
+		t.Errorf("expected a device-wifi-connect for the SSID: %v", r.calls)
 	}
-	if !r.calledWith("HomeWiFi") {
-		t.Error("expected the SSID in the command")
+	if !r.calledWith("password supersecret") {
+		t.Error("expected the password in the command")
 	}
-	if !r.calledWith("supersecret") {
-		t.Error("expected the PSK in the command")
+	if !r.calledWith("ifname wlan0") {
+		t.Error("expected the interface in the command")
 	}
-	if !r.calledWith("wpa-psk") {
-		t.Error("expected wpa-psk key management for a secured network")
+	// Security is auto-negotiated by nmcli (handles WPA2/WPA3); we must not pin it.
+	if r.calledWith("wpa-psk") {
+		t.Error("must not hardcode key management")
 	}
 }
 
-func TestSaveAndConnectOpenNetworkOmitsSecurity(t *testing.T) {
+func TestConnectWiFiOpenNetworkOmitsPassword(t *testing.T) {
 	r := &fakeRunner{}
 	nm := testNM(r)
 
-	if err := nm.SaveAndConnect(context.Background(), "OpenSpot", ""); err != nil {
-		t.Fatalf("SaveAndConnect: %v", err)
+	if err := nm.ConnectWiFi(context.Background(), "OpenSpot", ""); err != nil {
+		t.Fatalf("ConnectWiFi: %v", err)
 	}
-	if r.calledWith("wpa-psk") || r.calledWith("wifi-sec") {
-		t.Error("open network must not set any wifi security")
+	if r.calledWith("password") {
+		t.Error("open network must not pass a password")
+	}
+	if !r.calledWith("device wifi connect") || !r.calledWith("OpenSpot") {
+		t.Errorf("expected a device-wifi-connect for the SSID: %v", r.calls)
+	}
+}
+
+func TestConnectWiFiReturnsErrorOnFailure(t *testing.T) {
+	r := &fakeRunner{err: errRun}
+	nm := testNM(r)
+
+	if err := nm.ConnectWiFi(context.Background(), "HomeWiFi", "wrongpass"); err == nil {
+		t.Fatal("expected an error when the connection fails (e.g. wrong password)")
 	}
 }
 
@@ -195,27 +208,6 @@ func TestStopHotspotBringsConnectionDown(t *testing.T) {
 	}
 	if !r.calledWith("hub-os-config-ap") {
 		t.Error("expected the hotspot connection name in stop commands")
-	}
-}
-
-func TestConnectActivatesProfile(t *testing.T) {
-	r := &fakeRunner{}
-	nm := testNM(r)
-
-	if err := nm.Connect(context.Background(), "HomeWiFi"); err != nil {
-		t.Fatalf("Connect: %v", err)
-	}
-	if !r.calledWith("connection up") || !r.calledWith("HomeWiFi") {
-		t.Errorf("unexpected connect command: %v", r.calls)
-	}
-}
-
-func TestConnectReturnsErrorOnFailure(t *testing.T) {
-	r := &fakeRunner{err: errRun}
-	nm := testNM(r)
-
-	if err := nm.Connect(context.Background(), "HomeWiFi"); err == nil {
-		t.Fatal("expected an error when activation fails (e.g. wrong password)")
 	}
 }
 

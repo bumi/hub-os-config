@@ -20,8 +20,7 @@ type fakeNM struct {
 
 func (f *fakeNM) ScanNetworks(context.Context) ([]netmgr.Network, error) { return f.nets, nil }
 func (f *fakeNM) IsWiFiConfigured(context.Context) (bool, error)         { return false, nil }
-func (f *fakeNM) SaveAndConnect(context.Context, string, string) error   { return nil }
-func (f *fakeNM) Connect(context.Context, string) error                  { return nil }
+func (f *fakeNM) ConnectWiFi(context.Context, string, string) error      { return nil }
 func (f *fakeNM) DeleteConnection(context.Context, string) error         { return nil }
 func (f *fakeNM) StartHotspot(context.Context) error                     { return nil }
 func (f *fakeNM) StopHotspot(context.Context) error                      { return nil }

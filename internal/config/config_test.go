@@ -19,6 +19,9 @@ func TestDefaultValues(t *testing.T) {
 	if c.AccessPoint.GatewayIP != "192.168.4.1" {
 		t.Errorf("default gateway = %q; want 192.168.4.1", c.AccessPoint.GatewayIP)
 	}
+	if c.AccessPoint.Interface != "wlan0" {
+		t.Errorf("default interface = %q; want wlan0", c.AccessPoint.Interface)
+	}
 	if c.Web.NormalPort != 8090 {
 		t.Errorf("default normal port = %d; want 8090", c.Web.NormalPort)
 	}

@@ -19,7 +19,6 @@ import (
 const (
 	configPath      = "/etc/hub-os-config/config.toml"
 	hotspotConnName = "hub-os-config-ap"
-	wifiInterface   = "wlan0"
 	superviseEvery  = 30 * time.Second
 	rebootDelay     = 2 * time.Second
 )
@@ -33,7 +32,7 @@ func runService() error {
 	}
 
 	nm := netmgr.New(netmgr.APConfig{
-		Interface:   wifiInterface,
+		Interface:   cfg.AccessPoint.Interface,
 		HotspotName: hotspotConnName,
 		SSID:        cfg.AccessPoint.SSID,
 		Channel:     cfg.AccessPoint.Channel,

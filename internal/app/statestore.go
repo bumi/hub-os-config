@@ -12,10 +12,6 @@ func NewFileStateStore(path string) *FileStateStore {
 	return &FileStateStore{path: path}
 }
 
-func (s *FileStateStore) Load() (config.State, error) {
-	return config.LoadState(s.path)
-}
-
 func (s *FileStateStore) Save(st config.State) error {
 	return config.SaveState(s.path, st)
 }

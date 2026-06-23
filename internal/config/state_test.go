@@ -1,22 +1,13 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 )
 
-func TestLoadStateMissingFileReturnsZeroValue(t *testing.T) {
-	s, err := LoadState(filepath.Join(t.TempDir(), "nostate.json"))
-	if err != nil {
-		t.Fatalf("LoadState missing file errored: %v", err)
-	}
-	if s.LastMode != "" || s.LastAttempt != nil {
-		t.Fatalf("expected zero State, got %+v", s)
-	}
-}
-
-func TestSaveStateThenLoadRoundTrips(t *testing.T) {
+func TestSaveStateWritesJSON(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
 	in := State{
 		LastMode: "normal",
@@ -30,16 +21,20 @@ func TestSaveStateThenLoadRoundTrips(t *testing.T) {
 		t.Fatalf("SaveState: %v", err)
 	}
 
-	out, err := LoadState(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("LoadState: %v", err)
+		t.Fatalf("reading state: %v", err)
+	}
+	var out State
+	if err := json.Unmarshal(data, &out); err != nil {
+		t.Fatalf("state file is not valid JSON: %v", err)
 	}
 	if out.LastMode != "normal" {
 		t.Errorf("LastMode = %q; want normal", out.LastMode)
 	}
 	if out.LastAttempt == nil || out.LastAttempt.SSID != "HomeWiFi" ||
 		out.LastAttempt.Result != "failed" || out.LastAttempt.Reason != "authentication failure" {
-		t.Errorf("LastAttempt round-trip wrong: %+v", out.LastAttempt)
+		t.Errorf("LastAttempt wrong: %+v", out.LastAttempt)
 	}
 }
 

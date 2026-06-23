@@ -15,21 +15,23 @@ import (
 // --- fakes ---
 
 type appNM struct {
-	configured   bool
-	ssid         string
-	connectErr   error
-	deleteCalled bool
-	stopCalled   bool
+	configured    bool
+	configuredErr error
+	ssid          string
+	connectErr    error
+	deleteCalled  bool
+	stopCalled    bool
 }
 
 func (f *appNM) ScanNetworks(context.Context) ([]netmgr.Network, error) { return nil, nil }
-func (f *appNM) IsWiFiConfigured(context.Context) (bool, error)         { return f.configured, nil }
-func (f *appNM) SaveAndConnect(context.Context, string, string) error   { return nil }
-func (f *appNM) Connect(context.Context, string) error                  { return f.connectErr }
-func (f *appNM) DeleteConnection(context.Context, string) error         { f.deleteCalled = true; return nil }
-func (f *appNM) StartHotspot(context.Context) error                     { return nil }
-func (f *appNM) StopHotspot(context.Context) error                      { f.stopCalled = true; return nil }
-func (f *appNM) CurrentSSID(context.Context) (string, error)            { return f.ssid, nil }
+func (f *appNM) IsWiFiConfigured(context.Context) (bool, error) {
+	return f.configured, f.configuredErr
+}
+func (f *appNM) ConnectWiFi(context.Context, string, string) error { return f.connectErr }
+func (f *appNM) DeleteConnection(context.Context, string) error    { f.deleteCalled = true; return nil }
+func (f *appNM) StartHotspot(context.Context) error                { return nil }
+func (f *appNM) StopHotspot(context.Context) error                 { f.stopCalled = true; return nil }
+func (f *appNM) CurrentSSID(context.Context) (string, error)       { return f.ssid, nil }
 
 type fakeEnv struct{ applied map[string]string }
 
@@ -85,7 +87,6 @@ type recordingState struct {
 	saves         int
 }
 
-func (r *recordingState) Load() (config.State, error) { return config.State{}, nil }
 func (r *recordingState) Save(s config.State) error {
 	r.saves++
 	r.lastSavedMode = s.LastMode
@@ -150,6 +151,21 @@ func TestBootConfiguredAndOnlineEntersNormal(t *testing.T) {
 	}
 	if rs.lastSavedMode != "normal" || rs.lastAttempt != nil {
 		t.Errorf("expected normal mode and no failed attempt; got mode=%q attempt=%+v", rs.lastSavedMode, rs.lastAttempt)
+	}
+}
+
+func TestBootEntersSetupWhenConfigCheckErrors(t *testing.T) {
+	ctrl := &fakeController{}
+	mon := connectivity.NewWithClock(30*time.Minute, clockAt(time.Unix(0, 0)))
+	nm := &appNM{configuredErr: errors.New("NetworkManager not ready")}
+	a, _ := newApp(nm, &fakeProber{online: false}, ctrl, mon)
+
+	mode, err := a.Boot(context.Background())
+	if err != nil {
+		t.Fatalf("Boot should not fail on a config-check error: %v", err)
+	}
+	if mode != ModeSetup || ctrl.setupCalls != 1 {
+		t.Fatalf("expected Setup entry on config-check error; mode=%v setup=%d", mode, ctrl.setupCalls)
 	}
 }
 
@@ -232,7 +248,7 @@ func wifiReq(ssid, pw string, adv map[string]string) web.SaveRequest {
 	return web.SaveRequest{WiFi: &web.WiFiCreds{SSID: ssid, Password: pw}, Advanced: adv}
 }
 
-func TestApplyWiFiSuccessGoesLiveWithoutReboot(t *testing.T) {
+func TestApplyWiFiSuccessReboots(t *testing.T) {
 	nm := &appNM{ssid: "HomeWiFi"} // connectErr nil -> association succeeds
 	a, env, rb, ctrl, rs := newApplyApp(nm)
 
@@ -244,11 +260,11 @@ func TestApplyWiFiSuccessGoesLiveWithoutReboot(t *testing.T) {
 	if !nm.stopCalled {
 		t.Error("expected the AP to be dropped to test as a station")
 	}
-	if ctrl.normalCalls != 1 {
-		t.Errorf("expected to go live (EnterNormal once), got %d", ctrl.normalCalls)
+	if !rb.called {
+		t.Error("expected a reboot after the password is verified (autoconnect reconnects on boot)")
 	}
-	if rb.called {
-		t.Error("must not reboot when only WiFi changed")
+	if ctrl.normalCalls != 0 {
+		t.Errorf("should reboot, not switch live; EnterNormal calls = %d", ctrl.normalCalls)
 	}
 	if env.applied != nil {
 		t.Error("no advanced settings to apply")
@@ -269,6 +285,19 @@ func TestApplyWiFiSuccessWithAdvancedReboots(t *testing.T) {
 	}
 	if !rb.called {
 		t.Error("expected a reboot when advanced settings changed")
+	}
+}
+
+func TestSaveClearsPriorAttemptImmediately(t *testing.T) {
+	nm := &appNM{ssid: "HomeWiFi"}
+	a, _, _, _, _ := newApplyApp(nm)
+	a.deps.FlushDelay = time.Hour // keep the async test dormant during this check
+	a.set(ModeSetup, false, &config.Attempt{SSID: "Old", Result: "failed", Reason: "stale"})
+
+	a.Save(web.SaveRequest{WiFi: &web.WiFiCreds{SSID: "New", Password: "correctpass"}})
+
+	if a.WebStatus().LastAttempt != nil {
+		t.Fatalf("Save should clear the prior attempt so the UI ignores it; got %+v", a.WebStatus().LastAttempt)
 	}
 }
 

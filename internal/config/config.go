@@ -23,6 +23,7 @@ type AccessPoint struct {
 	SSID      string `toml:"ssid"`
 	Channel   int    `toml:"channel"`
 	GatewayIP string `toml:"gateway_ip"`
+	Interface string `toml:"interface"`
 }
 
 type Web struct {
@@ -49,6 +50,7 @@ func Default() Config {
 			SSID:      "albyhub-setup",
 			Channel:   6,
 			GatewayIP: "192.168.4.1",
+			Interface: "wlan0",
 		},
 		Web: Web{
 			NormalPort: 8090,

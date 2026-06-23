@@ -5,7 +5,7 @@
 # the app and exercise the real web UI and JSON API locally.
 
 # --- build ---
-FROM golang:1.23-bookworm AS build
+FROM golang:1.21-bookworm AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download

@@ -224,8 +224,6 @@
     .overlay-text { color: var(--muted); font-size: 15px; line-height: 1.55; max-width: 300px; margin: 12px auto 0; }
     .check-circle { width: 74px; height: 74px; margin: 0 auto; border-radius: 50%; background: #16B364; display: flex; align-items: center; justify-content: center; animation: popin .45s cubic-bezier(.34, 1.56, .64, 1) both; }
     .success-title { font-size: 24px; font-weight: 700; color: var(--ink); letter-spacing: -.02em; margin: 20px 0 9px; }
-    .reset-btn { margin-top: 12px; padding: 8px; background: transparent; border: none; color: var(--muted-2); font-size: 14px; font-weight: 500; cursor: pointer; }
-    .reset-btn:hover { color: var(--ink); }
   </style>
 </head>
 <body>
@@ -361,7 +359,6 @@
         Open Alby Hub
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="#1C1A17" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
       </button>
-      <button class="reset-btn" id="setup-other" type="button">Set up a different network</button>
     </div>
   </div>
 
@@ -577,14 +574,13 @@
         "otherwise reconnect your device to “" + overlayName() + "” and open Alby Hub once it's back (up to a minute).";
     }
 
-    // The device drops the AP/connection to verify the password (single radio).
-    // We watch for the drop, then: if the Hub becomes reachable and online ->
-    // success (it has finished restarting); if the setup AP returns with a
-    // recorded failure -> wrong password, let the user retry. In the captive
-    // flow a *successful* join can't be observed (the AP is gone for good), so
-    // we stay on the guidance message above.
+    // After saving, the device verifies the password. The app clears any prior
+    // attempt when the save starts, so a "failed" last_attempt now belongs to
+    // this attempt. Outcomes: reachable + online -> success (restart done);
+    // still in Setup Mode with a failed attempt -> wrong password, let the user
+    // retry; connection lost (real AP drop) -> show honest guidance, since a
+    // successful join can't be observed from a dropped captive portal.
     function pollForResult(hasWiFi) {
-      let sawDrop = false;
       let announced = false;
       const start = Date.now();
       const timer = setInterval(async () => {
@@ -592,13 +588,15 @@
         try {
           const st = await getJSON("/api/status");
           if (st.online) { clearInterval(timer); showSuccess(); return; }
-          if (hasWiFi && sawDrop && st.mode === "setup" &&
+          if (hasWiFi && st.mode === "setup" &&
               st.last_attempt && st.last_attempt.result === "failed") {
             clearInterval(timer);
             showFailure(st.last_attempt);
+            return;
           }
+          // still reachable and applying -> keep the "verifying" message
         } catch (e) {
-          sawDrop = true; // connection dropped -> the join is under way
+          // connection lost (the AP dropped to test) -> honest guidance
           if (hasWiFi && !announced) { announced = true; setConnectingGuidance(); }
         }
       }, 3000);
@@ -619,17 +617,6 @@
         "Connected to “" + overlayName() + "” and back online. You can open Alby Hub now.";
       $("overlay-connecting").classList.add("hidden");
       $("overlay-success").classList.remove("hidden");
-    }
-
-    function reset() {
-      $("overlay-success").classList.add("hidden");
-      $("overlay-connecting").classList.add("hidden");
-      state.selected = null;
-      state.password = "";
-      $("pw-input").value = "";
-      updatePasswordBlock();
-      updateConnect();
-      scan();
     }
 
     // ---- wire up static handlers ----
@@ -658,9 +645,8 @@
 
       $("connect").addEventListener("click", connect);
       $("open-hub").addEventListener("click", () => {
-        window.location.href = window.location.protocol + "//" + window.location.hostname + ":8080";
+        window.location.href = "http://albyhub.local";
       });
-      $("setup-other").addEventListener("click", reset);
     }
 
     async function init() {

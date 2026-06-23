@@ -114,18 +114,13 @@ func (s *Server) handleNetworks(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
-	app := s.deps.Status()
 	ssid, _ := s.deps.NM.CurrentSSID(r.Context())
 	writeJSON(w, http.StatusOK, struct {
-		Mode        string          `json:"mode"`
-		Online      bool            `json:"online"`
-		CurrentSSID string          `json:"current_ssid"`
-		LastAttempt *config.Attempt `json:"last_attempt,omitempty"`
+		AppStatus
+		CurrentSSID string `json:"current_ssid"`
 	}{
-		Mode:        app.Mode,
-		Online:      app.Online,
+		AppStatus:   s.deps.Status(),
 		CurrentSSID: ssid,
-		LastAttempt: app.LastAttempt,
 	})
 }
 
@@ -152,6 +147,7 @@ func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req saveRequest
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<10) // cap the request body at 64 KiB
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return

@@ -8,6 +8,7 @@ package app
 
 import (
 	"context"
+	"log"
 	"sync"
 	"time"
 
@@ -37,9 +38,8 @@ type Controller interface {
 	EnterNormal(ctx context.Context) error
 }
 
-// StateStore persists runtime state across reboots.
+// StateStore writes a record of runtime state (for observability/debugging).
 type StateStore interface {
-	Load() (config.State, error)
 	Save(config.State) error
 }
 
@@ -104,7 +104,10 @@ func decideInitialMode(configured, online bool) Mode {
 func (a *App) Boot(ctx context.Context) (Mode, error) {
 	configured, err := a.deps.NM.IsWiFiConfigured(ctx)
 	if err != nil {
-		return "", err
+		// Don't leave the device without an AP if NetworkManager is briefly
+		// unavailable at boot; assume nothing is configured and enter Setup.
+		log.Printf("checking WiFi configuration failed, assuming none: %v", err)
+		configured = false
 	}
 
 	online := false
@@ -212,6 +215,14 @@ func (a *App) setOnline(online bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.online = online
+}
+
+// clearAttempt marks a fresh attempt as in progress by discarding any prior
+// failure, so the UI never mistakes a previous attempt's result for this one's.
+func (a *App) clearAttempt() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.lastAttempt = nil
 }
 
 // Mode returns the current mode.

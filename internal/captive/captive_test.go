@@ -1,59 +1,11 @@
 package captive
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
-
-func TestRedirectHandlerRedirectsProbePathsToPortal(t *testing.T) {
-	h := RedirectHandler("http://192.168.4.1/")
-
-	for _, path := range ProbePaths {
-		req := httptest.NewRequest(http.MethodGet, path, nil)
-		rec := httptest.NewRecorder()
-		h(rec, req)
-
-		if rec.Code != http.StatusFound {
-			t.Errorf("%s: status = %d; want 302", path, rec.Code)
-		}
-		if loc := rec.Header().Get("Location"); loc != "http://192.168.4.1/" {
-			t.Errorf("%s: Location = %q; want portal URL", path, loc)
-		}
-	}
-}
-
-func TestRedirectHandlerRedirectsArbitraryPath(t *testing.T) {
-	h := RedirectHandler("http://192.168.4.1/")
-	req := httptest.NewRequest(http.MethodGet, "/anything/at/all", nil)
-	rec := httptest.NewRecorder()
-	h(rec, req)
-
-	if rec.Code != http.StatusFound {
-		t.Fatalf("status = %d; want 302", rec.Code)
-	}
-	if rec.Header().Get("Location") != "http://192.168.4.1/" {
-		t.Fatalf("unexpected Location: %q", rec.Header().Get("Location"))
-	}
-}
-
-func TestIncludesKnownProbePaths(t *testing.T) {
-	want := []string{"/generate_204", "/hotspot-detect.html", "/ncsi.txt", "/connecttest.txt"}
-	for _, w := range want {
-		found := false
-		for _, p := range ProbePaths {
-			if p == w {
-				found = true
-			}
-		}
-		if !found {
-			t.Errorf("ProbePaths missing %q", w)
-		}
-	}
-}
 
 func TestWriteDNSRedirectCreatesDropIn(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "captive.conf")

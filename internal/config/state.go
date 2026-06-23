@@ -6,8 +6,9 @@ import (
 	"path/filepath"
 )
 
-// State is persisted runtime state, surviving reboots so the captive portal
-// can report what happened on the last WiFi attempt.
+// State is a written record of the last mode and WiFi attempt. It is persisted
+// for observability/debugging on the device; the app does not read it back (the
+// live status comes from in-memory state).
 type State struct {
 	LastMode    string   `json:"last_mode,omitempty"`
 	LastAttempt *Attempt `json:"last_attempt,omitempty"`
@@ -18,23 +19,6 @@ type Attempt struct {
 	SSID   string `json:"ssid"`
 	Result string `json:"result"` // "success" | "failed"
 	Reason string `json:"reason,omitempty"`
-}
-
-// LoadState reads state from path. A missing file yields a zero State with no
-// error.
-func LoadState(path string) (State, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return State{}, nil
-		}
-		return State{}, err
-	}
-	var s State
-	if err := json.Unmarshal(data, &s); err != nil {
-		return State{}, err
-	}
-	return s, nil
 }
 
 // SaveState writes state to path atomically (temp file + rename).

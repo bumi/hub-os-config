@@ -14,6 +14,7 @@ import (
 // portal — so the outcome is reported via status, not this call.
 func (a *App) Save(req web.SaveRequest) {
 	if req.WiFi != nil {
+		a.clearAttempt() // mark this attempt pending so the UI ignores a prior failure
 		go func() {
 			if a.deps.FlushDelay > 0 {
 				time.Sleep(a.deps.FlushDelay) // let the HTTP response flush
@@ -31,39 +32,27 @@ func (a *App) Save(req web.SaveRequest) {
 	_ = a.deps.Reboot.Reboot()
 }
 
-// testAndApply verifies the WiFi credentials before committing. On success it
-// applies advanced settings and either reboots (if any changed) or switches to
-// the network live. On failure it discards the profile, restores the setup AP,
-// and records the reason so the portal can prompt for the password again.
+// testAndApply verifies the WiFi credentials before committing, then reboots.
+// ConnectWiFi created an autoconnecting profile, so on the next boot
+// NetworkManager reconnects to it on its own and Alby Hub re-reads any changed
+// .env. On failure it discards the profile, restores the setup AP, and records
+// the reason so the portal can prompt for the password again.
 func (a *App) testAndApply(ctx context.Context, req web.SaveRequest) {
 	ssid := req.WiFi.SSID
-	if err := a.deps.NM.SaveAndConnect(ctx, ssid, req.WiFi.Password); err != nil {
-		a.failWiFi(ctx, ssid, "could not save the network profile")
-		return
-	}
-	_ = a.deps.NM.StopHotspot(ctx) // free the single radio to test as a station
-	if err := a.deps.NM.Connect(ctx, ssid); err != nil {
+	_ = a.deps.NM.StopHotspot(ctx) // free the single radio to connect as a station
+	if err := a.deps.NM.ConnectWiFi(ctx, ssid, req.WiFi.Password); err != nil {
 		_ = a.deps.NM.DeleteConnection(ctx, ssid)
 		a.failWiFi(ctx, ssid, "incorrect password or could not connect")
 		return
 	}
 
-	// Password verified. Apply advanced settings if present.
+	// Password verified — commit and reboot for a clean start on the new network.
 	if len(req.Advanced) > 0 {
 		_ = a.deps.Env.Apply(req.Advanced)
-		a.set(ModeNormal, true, nil)
-		a.persist()
-		_ = a.deps.Reboot.Reboot() // reboot so Alby Hub re-reads its .env
-		return
 	}
-
-	// WiFi-only success: switch to the network live, no reboot needed.
-	online := a.deps.Prober.Online(ctx)
-	if err := a.deps.Controller.EnterNormal(ctx); err != nil {
-		_ = err // best-effort; the supervisor loop will reconcile
-	}
-	a.set(ModeNormal, online, nil)
+	a.set(ModeNormal, true, nil)
 	a.persist()
+	_ = a.deps.Reboot.Reboot()
 }
 
 func (a *App) failWiFi(ctx context.Context, ssid, reason string) {

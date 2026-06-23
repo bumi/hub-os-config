@@ -25,8 +25,7 @@ type Network struct {
 type Manager interface {
 	ScanNetworks(ctx context.Context) ([]Network, error)
 	IsWiFiConfigured(ctx context.Context) (bool, error)
-	SaveAndConnect(ctx context.Context, ssid, psk string) error
-	Connect(ctx context.Context, ssid string) error
+	ConnectWiFi(ctx context.Context, ssid, psk string) error
 	DeleteConnection(ctx context.Context, ssid string) error
 	StartHotspot(ctx context.Context) error
 	StopHotspot(ctx context.Context) error
@@ -82,41 +81,20 @@ func (n *NM) IsWiFiConfigured(ctx context.Context) (bool, error) {
 	return hasConfiguredWiFi(out, n.ap.HotspotName), nil
 }
 
-// SaveAndConnect persists an autoconnecting WiFi profile for the given network.
-// It does not bring the connection up now (the device reboots to apply it),
-// so the captive-portal session is not dropped mid-request.
-func (n *NM) SaveAndConnect(ctx context.Context, ssid, psk string) error {
-	// Remove any prior profile with this name so we never hit a duplicate.
-	_, _ = n.nmcli(ctx, "connection", "delete", ssid)
-
-	args := []string{
-		"connection", "add",
-		"type", "wifi",
-		"ifname", n.ap.Interface,
-		"con-name", ssid,
-		"ssid", ssid,
-		"connection.autoconnect", "yes",
-		"connection.autoconnect-priority", "100",
-	}
+// ConnectWiFi creates an autoconnecting profile for the network and activates
+// it, blocking until it is connected or the context deadline elapses. It uses
+// `nmcli device wifi connect`, which auto-negotiates security (open / WPA2 /
+// WPA3) and enables autoconnect, so NetworkManager reconnects on the next boot.
+// An error means the credentials are wrong or the network is unreachable, which
+// the caller surfaces before committing. The radio must be free (AP stopped).
+func (n *NM) ConnectWiFi(ctx context.Context, ssid, psk string) error {
+	args := []string{"device", "wifi", "connect", ssid}
 	if psk != "" {
-		args = append(args,
-			"wifi-sec.key-mgmt", "wpa-psk",
-			"wifi-sec.psk", psk,
-		)
+		args = append(args, "password", psk)
 	}
+	args = append(args, "ifname", n.ap.Interface)
 	if _, err := n.nmcli(ctx, args...); err != nil {
-		return fmt.Errorf("saving WiFi profile %q: %w", ssid, err)
-	}
-	return nil
-}
-
-// Connect activates a saved connection, blocking until it is active or the
-// context deadline elapses. It returns an error if activation fails — e.g. a
-// wrong password — which the caller uses to give the user feedback before
-// committing.
-func (n *NM) Connect(ctx context.Context, ssid string) error {
-	if _, err := n.nmcli(ctx, "connection", "up", ssid); err != nil {
-		return fmt.Errorf("activating %q: %w", ssid, err)
+		return fmt.Errorf("connecting to %q: %w", ssid, err)
 	}
 	return nil
 }
@@ -156,12 +134,11 @@ func (n *NM) StartHotspot(ctx context.Context) error {
 	return nil
 }
 
-// StopHotspot tears the setup access point down.
+// StopHotspot tears the setup access point down. Best-effort: an absent profile
+// is not an error (it may already be gone).
 func (n *NM) StopHotspot(ctx context.Context) error {
 	_, _ = n.nmcli(ctx, "connection", "down", n.ap.HotspotName)
-	if _, err := n.nmcli(ctx, "connection", "delete", n.ap.HotspotName); err != nil {
-		return fmt.Errorf("deleting hotspot profile: %w", err)
-	}
+	_, _ = n.nmcli(ctx, "connection", "delete", n.ap.HotspotName)
 	return nil
 }
 

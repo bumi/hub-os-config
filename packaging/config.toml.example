@@ -9,6 +9,8 @@ ssid = "albyhub-setup"
 channel = 6
 # Gateway IP for the AP network; also the captive-portal address.
 gateway_ip = "192.168.4.1"
+# WiFi interface used for both the access point and the station connection.
+interface = "wlan0"
 
 [web]
 # Port the config UI listens on once the device is online (Normal Mode).
