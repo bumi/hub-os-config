@@ -25,7 +25,7 @@ type Network struct {
 type Manager interface {
 	ScanNetworks(ctx context.Context) ([]Network, error)
 	IsWiFiConfigured(ctx context.Context) (bool, error)
-	ConnectWiFi(ctx context.Context, ssid, psk string) error
+	ConnectWiFi(ctx context.Context, ssid, psk string, hidden bool) error
 	DeleteConnection(ctx context.Context, ssid string) error
 	StartHotspot(ctx context.Context) error
 	StopHotspot(ctx context.Context) error
@@ -85,14 +85,19 @@ func (n *NM) IsWiFiConfigured(ctx context.Context) (bool, error) {
 // it, blocking until it is connected or the context deadline elapses. It uses
 // `nmcli device wifi connect`, which auto-negotiates security (open / WPA2 /
 // WPA3) and enables autoconnect, so NetworkManager reconnects on the next boot.
-// An error means the credentials are wrong or the network is unreachable, which
-// the caller surfaces before committing. The radio must be free (AP stopped).
-func (n *NM) ConnectWiFi(ctx context.Context, ssid, psk string) error {
+// Set hidden for a manually-entered SSID so NM actively probes for it (needed
+// for hidden networks; harmless for visible ones). An error means the
+// credentials are wrong or the network is unreachable, which the caller
+// surfaces before committing. The radio must be free (AP stopped).
+func (n *NM) ConnectWiFi(ctx context.Context, ssid, psk string, hidden bool) error {
 	args := []string{"device", "wifi", "connect", ssid}
 	if psk != "" {
 		args = append(args, "password", psk)
 	}
 	args = append(args, "ifname", n.ap.Interface)
+	if hidden {
+		args = append(args, "hidden", "yes")
+	}
 	if _, err := n.nmcli(ctx, args...); err != nil {
 		return fmt.Errorf("connecting to %q: %w", ssid, err)
 	}

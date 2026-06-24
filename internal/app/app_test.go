@@ -27,11 +27,11 @@ func (f *appNM) ScanNetworks(context.Context) ([]netmgr.Network, error) { return
 func (f *appNM) IsWiFiConfigured(context.Context) (bool, error) {
 	return f.configured, f.configuredErr
 }
-func (f *appNM) ConnectWiFi(context.Context, string, string) error { return f.connectErr }
-func (f *appNM) DeleteConnection(context.Context, string) error    { f.deleteCalled = true; return nil }
-func (f *appNM) StartHotspot(context.Context) error                { return nil }
-func (f *appNM) StopHotspot(context.Context) error                 { f.stopCalled = true; return nil }
-func (f *appNM) CurrentSSID(context.Context) (string, error)       { return f.ssid, nil }
+func (f *appNM) ConnectWiFi(context.Context, string, string, bool) error { return f.connectErr }
+func (f *appNM) DeleteConnection(context.Context, string) error          { f.deleteCalled = true; return nil }
+func (f *appNM) StartHotspot(context.Context) error                      { return nil }
+func (f *appNM) StopHotspot(context.Context) error                       { f.stopCalled = true; return nil }
+func (f *appNM) CurrentSSID(context.Context) (string, error)             { return f.ssid, nil }
 
 type fakeEnv struct{ applied map[string]string }
 

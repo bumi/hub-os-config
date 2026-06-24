@@ -14,6 +14,13 @@ import (
 	"github.com/getAlby/hub-os-config/internal/web"
 )
 
+const (
+	hotspotAttempts     = 3
+	hotspotRetryDelay   = 2 * time.Second
+	serveBindAttempts   = 5
+	serveBindRetryDelay = 2 * time.Second
+)
+
 // ControllerConfig wires the real Controller to the host.
 type ControllerConfig struct {
 	NM         netmgr.Manager
@@ -47,7 +54,11 @@ func (c *realController) EnterSetup(ctx context.Context) error {
 	if err := captive.WriteDNSRedirect(c.cfg.DropInPath, c.cfg.GatewayIP); err != nil {
 		log.Printf("warning: writing captive DNS drop-in: %v", err)
 	}
-	if err := c.cfg.NM.StartHotspot(ctx); err != nil {
+	// The radio may not be ready immediately after boot or after dropping a
+	// station connection, so retry bringing the AP up.
+	if err := retry(ctx, hotspotAttempts, hotspotRetryDelay, func() error {
+		return c.cfg.NM.StartHotspot(ctx)
+	}); err != nil {
 		return err
 	}
 	addr := net.JoinHostPort(c.cfg.GatewayIP, "80")
@@ -87,9 +98,40 @@ func (c *realController) serve(addr, portalURL string, captivePortal bool) error
 
 	go func(s *http.Server) {
 		log.Printf("serving config UI on %s (captive=%v)", addr, captivePortal)
-		if err := s.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("web server on %s stopped: %v", addr, err)
+		// Retry the bind: right after the AP comes up the gateway IP may not be
+		// assigned to the interface yet. ErrServerClosed means a mode switch shut
+		// this server down — stop then.
+		for attempt := 1; ; attempt++ {
+			err := s.ListenAndServe()
+			if err == nil || err == http.ErrServerClosed {
+				return
+			}
+			log.Printf("web server on %s failed (attempt %d/%d): %v", addr, attempt, serveBindAttempts, err)
+			if attempt >= serveBindAttempts {
+				log.Printf("giving up serving on %s", addr)
+				return
+			}
+			time.Sleep(serveBindRetryDelay)
 		}
 	}(c.srv)
 	return nil
+}
+
+// retry calls fn until it succeeds, up to attempts times, sleeping delay
+// between tries (aborting early if ctx is cancelled).
+func retry(ctx context.Context, attempts int, delay time.Duration, fn func() error) error {
+	var err error
+	for i := 0; i < attempts; i++ {
+		if err = fn(); err == nil {
+			return nil
+		}
+		if i < attempts-1 {
+			select {
+			case <-ctx.Done():
+				return err
+			case <-time.After(delay):
+			}
+		}
+	}
+	return err
 }

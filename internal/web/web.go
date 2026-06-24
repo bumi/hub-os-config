@@ -38,10 +38,12 @@ type AppStatus struct {
 	LastAttempt *config.Attempt `json:"last_attempt,omitempty"`
 }
 
-// WiFiCreds is a chosen WiFi network and password.
+// WiFiCreds is a chosen WiFi network and password. Hidden is set for a
+// manually-entered SSID (so NetworkManager actively probes for it).
 type WiFiCreds struct {
 	SSID     string
 	Password string
+	Hidden   bool
 }
 
 // SaveRequest is a validated configuration change handed to the Save callback.
@@ -137,6 +139,7 @@ type saveRequest struct {
 	WiFi *struct {
 		SSID     string `json:"ssid"`
 		Password string `json:"password"`
+		Hidden   bool   `json:"hidden"`
 	} `json:"wifi"`
 	Advanced map[string]string `json:"advanced"`
 }
@@ -175,7 +178,7 @@ func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
 	// observes the result via /api/status.
 	out := SaveRequest{Advanced: advanced}
 	if req.WiFi != nil {
-		out.WiFi = &WiFiCreds{SSID: req.WiFi.SSID, Password: req.WiFi.Password}
+		out.WiFi = &WiFiCreds{SSID: req.WiFi.SSID, Password: req.WiFi.Password, Hidden: req.WiFi.Hidden}
 	}
 	s.deps.Save(out)
 

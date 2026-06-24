@@ -132,7 +132,7 @@ func TestConnectWiFiSecuredUsesDeviceConnect(t *testing.T) {
 	r := &fakeRunner{}
 	nm := testNM(r)
 
-	if err := nm.ConnectWiFi(context.Background(), "HomeWiFi", "supersecret"); err != nil {
+	if err := nm.ConnectWiFi(context.Background(), "HomeWiFi", "supersecret", false); err != nil {
 		t.Fatalf("ConnectWiFi: %v", err)
 	}
 	if !r.calledWith("device wifi connect") || !r.calledWith("HomeWiFi") {
@@ -148,13 +148,16 @@ func TestConnectWiFiSecuredUsesDeviceConnect(t *testing.T) {
 	if r.calledWith("wpa-psk") {
 		t.Error("must not hardcode key management")
 	}
+	if r.calledWith("hidden") {
+		t.Error("a visible network must not pass hidden")
+	}
 }
 
 func TestConnectWiFiOpenNetworkOmitsPassword(t *testing.T) {
 	r := &fakeRunner{}
 	nm := testNM(r)
 
-	if err := nm.ConnectWiFi(context.Background(), "OpenSpot", ""); err != nil {
+	if err := nm.ConnectWiFi(context.Background(), "OpenSpot", "", false); err != nil {
 		t.Fatalf("ConnectWiFi: %v", err)
 	}
 	if r.calledWith("password") {
@@ -165,11 +168,23 @@ func TestConnectWiFiOpenNetworkOmitsPassword(t *testing.T) {
 	}
 }
 
+func TestConnectWiFiHiddenPassesHiddenYes(t *testing.T) {
+	r := &fakeRunner{}
+	nm := testNM(r)
+
+	if err := nm.ConnectWiFi(context.Background(), "MyHidden", "supersecret", true); err != nil {
+		t.Fatalf("ConnectWiFi: %v", err)
+	}
+	if !r.calledWith("hidden yes") {
+		t.Errorf("expected 'hidden yes' for a manual/hidden network: %v", r.calls)
+	}
+}
+
 func TestConnectWiFiReturnsErrorOnFailure(t *testing.T) {
 	r := &fakeRunner{err: errRun}
 	nm := testNM(r)
 
-	if err := nm.ConnectWiFi(context.Background(), "HomeWiFi", "wrongpass"); err == nil {
+	if err := nm.ConnectWiFi(context.Background(), "HomeWiFi", "wrongpass", false); err == nil {
 		t.Fatal("expected an error when the connection fails (e.g. wrong password)")
 	}
 }

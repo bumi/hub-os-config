@@ -31,7 +31,12 @@ type Web struct {
 }
 
 type Connectivity struct {
-	PrimaryURL          string `toml:"primary_url"`
+	// PrimaryURL is fetched first; any 2xx means online.
+	PrimaryURL string `toml:"primary_url"`
+	// FallbackURL must be a generate_204-style endpoint over plain HTTP; only an
+	// exact 204 counts as online. Plain HTTP keeps it working before NTP has set
+	// the clock (a Pi has no RTC, so HTTPS/TLS can fail right after boot), and the
+	// exact-204 check rejects captive-portal interception (which returns 200).
 	FallbackURL         string `toml:"fallback_url"`
 	ProbeTimeoutSeconds int    `toml:"probe_timeout_seconds"`
 	RetryWindowSeconds  int    `toml:"retry_window_seconds"`
@@ -57,7 +62,7 @@ func Default() Config {
 		},
 		Connectivity: Connectivity{
 			PrimaryURL:          "https://getalby.com/api/internal/info",
-			FallbackURL:         "https://www.google.com/generate_204",
+			FallbackURL:         "http://connectivitycheck.gstatic.com/generate_204",
 			ProbeTimeoutSeconds: 5,
 			RetryWindowSeconds:  1800, // 30 minutes
 		},

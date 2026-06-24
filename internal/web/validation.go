@@ -2,7 +2,7 @@ package web
 
 import (
 	"fmt"
-	"net/url"
+	"strings"
 )
 
 // validateWiFi checks the SSID and password. An empty password means an open
@@ -20,21 +20,16 @@ func validateWiFi(ssid, password string) error {
 }
 
 // validateAdvanced checks the managed Alby Hub .env values that are present.
+// Values may be any single-line text (they aren't required to be URLs), but a
+// line break would inject extra lines into the .env file, so it is rejected.
 func validateAdvanced(adv map[string]string) error {
-	if v, ok := adv["LN_BACKEND_TYPE"]; ok {
-		if v != "LDK" && v != "BARK" {
-			return fmt.Errorf("LN_BACKEND_TYPE must be LDK or BARK")
+	for k, v := range adv {
+		if strings.ContainsAny(v, "\r\n") {
+			return fmt.Errorf("%s must be a single line", k)
 		}
 	}
-	for _, key := range []string{"RELAY", "LDK_ESPLORA_SERVER"} {
-		if v, ok := adv[key]; ok && !isValidURL(v) {
-			return fmt.Errorf("%s must be a valid URL", key)
-		}
+	if v, ok := adv["LN_BACKEND_TYPE"]; ok && v != "LDK" && v != "BARK" {
+		return fmt.Errorf("LN_BACKEND_TYPE must be LDK or BARK")
 	}
 	return nil
-}
-
-func isValidURL(s string) bool {
-	u, err := url.ParseRequestURI(s)
-	return err == nil && u.Scheme != "" && u.Host != ""
 }

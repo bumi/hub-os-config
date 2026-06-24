@@ -29,15 +29,17 @@ func New(primaryURL, fallbackURL string, timeout time.Duration) *Checker {
 	}
 }
 
-// Online reports whether either probe URL responds with a 2xx status.
+// Online reports whether the device has working internet. It tries the primary
+// URL (any 2xx) first, then the fallback, which must answer with exactly 204 —
+// a clock-independent (plain HTTP) check that also rejects captive portals.
 func (c *Checker) Online(ctx context.Context) bool {
-	if c.probe(ctx, c.primaryURL) {
+	if c.probe(ctx, c.primaryURL, false) {
 		return true
 	}
-	return c.probe(ctx, c.fallbackURL)
+	return c.probe(ctx, c.fallbackURL, true)
 }
 
-func (c *Checker) probe(ctx context.Context, url string) bool {
+func (c *Checker) probe(ctx context.Context, url string, want204 bool) bool {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return false
@@ -47,6 +49,9 @@ func (c *Checker) probe(ctx context.Context, url string) bool {
 		return false
 	}
 	defer resp.Body.Close()
+	if want204 {
+		return resp.StatusCode == http.StatusNoContent
+	}
 	return resp.StatusCode >= 200 && resp.StatusCode < 300
 }
 

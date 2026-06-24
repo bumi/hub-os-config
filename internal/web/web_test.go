@@ -18,13 +18,13 @@ type fakeNM struct {
 	ssid string
 }
 
-func (f *fakeNM) ScanNetworks(context.Context) ([]netmgr.Network, error) { return f.nets, nil }
-func (f *fakeNM) IsWiFiConfigured(context.Context) (bool, error)         { return false, nil }
-func (f *fakeNM) ConnectWiFi(context.Context, string, string) error      { return nil }
-func (f *fakeNM) DeleteConnection(context.Context, string) error         { return nil }
-func (f *fakeNM) StartHotspot(context.Context) error                     { return nil }
-func (f *fakeNM) StopHotspot(context.Context) error                      { return nil }
-func (f *fakeNM) CurrentSSID(context.Context) (string, error)            { return f.ssid, nil }
+func (f *fakeNM) ScanNetworks(context.Context) ([]netmgr.Network, error)  { return f.nets, nil }
+func (f *fakeNM) IsWiFiConfigured(context.Context) (bool, error)          { return false, nil }
+func (f *fakeNM) ConnectWiFi(context.Context, string, string, bool) error { return nil }
+func (f *fakeNM) DeleteConnection(context.Context, string) error          { return nil }
+func (f *fakeNM) StartHotspot(context.Context) error                      { return nil }
+func (f *fakeNM) StopHotspot(context.Context) error                       { return nil }
+func (f *fakeNM) CurrentSSID(context.Context) (string, error)             { return f.ssid, nil }
 
 type fakeEnv struct {
 	current map[string]string
@@ -204,14 +204,25 @@ func TestSaveRejectsInvalidBackendType(t *testing.T) {
 	}
 }
 
-func TestSaveRejectsInvalidURL(t *testing.T) {
+func TestSaveRejectsMultilineAdvancedValue(t *testing.T) {
 	s, cap := newTestServer(true)
-	rec := do(s, http.MethodPost, "/api/save", `{"advanced":{"RELAY":"not a url"}}`)
+	rec := do(s, http.MethodPost, "/api/save", `{"advanced":{"RELAY":"wss://r\nINJECTED=1"}}`)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d; want 400", rec.Code)
 	}
 	if cap.called {
-		t.Error("must not hand off on validation error")
+		t.Error("must not hand off a value that would inject an .env line")
+	}
+}
+
+func TestSaveAcceptsNonURLSingleLineValue(t *testing.T) {
+	s, cap := newTestServer(true)
+	rec := do(s, http.MethodPost, "/api/save", `{"advanced":{"RELAY":"anything goes here"}}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d; want 200 (single-line non-URL values are allowed)", rec.Code)
+	}
+	if cap.req.Advanced["RELAY"] != "anything goes here" {
+		t.Errorf("value not passed through: %+v", cap.req.Advanced)
 	}
 }
 

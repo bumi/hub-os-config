@@ -48,6 +48,24 @@ func TestOnlineFalseWhenBothFail(t *testing.T) {
 	}
 }
 
+func TestOnlineFalseWhenFallbackReturns200NotNoContent(t *testing.T) {
+	// A captive portal intercepts the fallback and returns 200 (a login page)
+	// instead of 204 — must be treated as offline.
+	dead := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	deadURL := dead.URL
+	dead.Close()
+
+	portal := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK) // 200, not 204
+	}))
+	defer portal.Close()
+
+	c := New(deadURL, portal.URL, 2*time.Second)
+	if c.Online(context.Background()) {
+		t.Fatal("expected offline when the fallback returns 200 instead of 204")
+	}
+}
+
 func TestOnlineFalseOnServerError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)

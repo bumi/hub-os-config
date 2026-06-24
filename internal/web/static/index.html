@@ -84,6 +84,21 @@
     }
     .error.show { display: block; }
 
+    .lan-info {
+      display: none;
+      margin: 16px auto 0;
+      max-width: 560px;
+      padding: 11px 14px;
+      background: #F4F1E6;
+      border: 1.5px solid #E8E1CE;
+      border-radius: calc(var(--radius) - 5px);
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+      text-align: center;
+    }
+    .lan-info.show { display: block; }
+
     .divider { height: 1px; background: var(--hairline); margin: 22px 0 18px; }
 
     .cols { display: flex; flex-wrap: wrap; gap: 30px; align-items: flex-start; }
@@ -139,6 +154,10 @@
       font-weight: 600; font-size: 13px; border: none; cursor: pointer;
     }
     .link-btn:hover { color: var(--ink); }
+
+    .net-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 9px; }
+    .net-actions .link-btn { width: auto; margin-top: 0; padding: 4px 0; }
+    .net-actions .adv-toggle { margin-top: 0; }
 
     .pw-block { animation: fadeUp .3s ease both; margin-top: 14px; }
     .pw-label { font-size: 12.5px; font-weight: 600; color: var(--muted); margin-bottom: 8px; }
@@ -237,6 +256,7 @@
     </div>
 
     <div class="error" id="error"></div>
+    <div class="lan-info" id="lan-info"></div>
 
     <div class="divider"></div>
 
@@ -257,7 +277,18 @@
         </div>
 
         <div class="net-list" id="networks"></div>
-        <button class="link-btn" id="rescan" type="button">Rescan networks</button>
+
+        <div class="net-actions">
+          <button class="link-btn" id="rescan" type="button">Rescan networks</button>
+          <button class="adv-toggle" id="manual-toggle" type="button">
+            <span class="adv-toggle-label">Join another network</span>
+            <svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          </button>
+        </div>
+        <div class="adv-panel hidden" id="manual-panel">
+          <input class="input" id="manual-ssid" placeholder="Network name (SSID)"
+                 autocapitalize="off" autocorrect="off" spellcheck="false" />
+        </div>
 
         <div class="pw-block hidden" id="pw-block">
           <div class="pw-label">Password for &ldquo;<span id="pw-name"></span>&rdquo;</div>
@@ -372,6 +403,7 @@
       showPw: false,
       scanning: false,
       backend: "LDK",   // LDK | BARK
+      manualOpen: false,
       advancedOpen: false,
       relay: "",
       esplora: "",
@@ -432,6 +464,7 @@
     }
 
     function selectNetwork(n) {
+      $("manual-ssid").value = ""; // a list pick clears any manual entry
       state.selected = n;
       state.password = "";
       state.showPw = false;
@@ -444,9 +477,17 @@
       if (n.secured) $("pw-input").focus();
     }
 
+    function selectManual(ssid) {
+      // A manually-typed SSID: treat as hidden, password optional (open or secured).
+      state.selected = ssid ? { ssid, secured: true, manual: true } : null;
+      renderNetworks(); // clear any list highlight
+      updatePasswordBlock();
+      updateConnect();
+    }
+
     function updatePasswordBlock() {
       const block = $("pw-block");
-      if (state.selected && state.selected.secured) {
+      if (state.selected && (state.selected.secured || state.selected.manual)) {
         $("pw-name").textContent = state.selected.ssid;
         block.classList.remove("hidden");
       } else {
@@ -456,9 +497,14 @@
 
     function canConnect() {
       if (!state.selected) return false;
+      const ssid = state.selected.ssid || "";
+      if (ssid.length < 1 || ssid.length > 32) return false;
+      const pw = state.password.trim().length;
+      if (state.selected.manual) {
+        return pw === 0 || (pw >= 8 && pw <= 63); // password optional for a typed network
+      }
       if (state.selected.secured) {
-        const n = state.password.trim().length;
-        return n >= 8 && n <= 63;
+        return pw >= 8 && pw <= 63;
       }
       return true;
     }
@@ -468,6 +514,11 @@
     function updateImpl() {
       $("impl-ldk").classList.toggle("selected", state.backend === "LDK");
       $("impl-bark").classList.toggle("selected", state.backend === "BARK");
+    }
+
+    function updateManual() {
+      $("manual-panel").classList.toggle("hidden", !state.manualOpen);
+      $("manual-toggle").classList.toggle("open", state.manualOpen);
     }
 
     function updateAdvanced() {
@@ -518,6 +569,13 @@
           const where = a.ssid ? ' for “' + a.ssid + '”' : "";
           showError("Previous attempt" + where + " failed" + (a.reason ? ": " + a.reason : "") + ".");
         }
+        if (st.mode === "normal") {
+          const port = window.location.port ? ":" + window.location.port : "";
+          const where = st.current_ssid ? "Connected to “" + st.current_ssid + "”. " : "";
+          const info = $("lan-info");
+          info.textContent = where + "Reachable on your network at http://albyhub.local" + port;
+          info.classList.add("show");
+        }
       } catch (e) { /* status is best-effort */ }
     }
 
@@ -525,16 +583,21 @@
     function overlayName() { return state.selected ? state.selected.ssid : "your network"; }
 
     async function connect() {
+      $("connect").disabled = true; // disable immediately so a double-click can't submit twice
       hideError();
       const advanced = { LN_BACKEND_TYPE: state.backend };
       if (state.relay.trim()) advanced.RELAY = state.relay.trim();
       if (state.esplora.trim()) advanced.LDK_ESPLORA_SERVER = state.esplora.trim();
       const payload = { advanced };
-      if (state.selected) payload.wifi = { ssid: state.selected.ssid, password: state.password };
-
       const hasWiFi = !!state.selected;
+      if (hasWiFi) {
+        payload.wifi = {
+          ssid: state.selected.ssid,
+          password: state.password,
+          hidden: !!state.selected.manual,
+        };
+      }
 
-      $("connect").disabled = true;
       let res;
       try {
         res = await fetch("/api/save", {
@@ -622,6 +685,14 @@
     // ---- wire up static handlers ----
     function bind() {
       $("rescan").addEventListener("click", scan);
+
+      $("manual-toggle").addEventListener("click", () => {
+        state.manualOpen = !state.manualOpen;
+        updateManual();
+      });
+      $("manual-ssid").addEventListener("input", (e) => {
+        selectManual(e.target.value.trim());
+      });
 
       $("pw-input").addEventListener("input", (e) => {
         state.password = e.target.value;

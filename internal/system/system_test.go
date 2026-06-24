@@ -31,6 +31,47 @@ func TestEnvStoreApplyUpdatesManagedKeysPreservingOthers(t *testing.T) {
 	}
 }
 
+func TestEnvStoreApplyOnlyRewritesManagedKeys(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "albyhub.env")
+	original := "# Alby Hub configuration\n" +
+		"NETWORK=bitcoin\n" +
+		"LN_BACKEND_TYPE=LDK\n" +
+		"RELAY=wss://old-relay\n" +
+		"\n" +
+		"# advanced settings\n" +
+		"LDK_ESPLORA_SERVER=https://old-esplora\n" +
+		"LOG_LEVEL=info\n" +
+		"WORK_DIR=/opt/albyhub/data\n"
+	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	store := NewEnvStore(path, []string{"RELAY", "LDK_ESPLORA_SERVER", "LN_BACKEND_TYPE"})
+	// Change only two of the three managed keys.
+	if err := store.Apply(map[string]string{
+		"RELAY":           "wss://new-relay",
+		"LN_BACKEND_TYPE": "BARK",
+	}); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	// RELAY and LN_BACKEND_TYPE updated in place; LDK_ESPLORA_SERVER untouched
+	// (not in the update); every comment, blank line, and unrelated key kept.
+	want := "# Alby Hub configuration\n" +
+		"NETWORK=bitcoin\n" +
+		"LN_BACKEND_TYPE=BARK\n" +
+		"RELAY=wss://new-relay\n" +
+		"\n" +
+		"# advanced settings\n" +
+		"LDK_ESPLORA_SERVER=https://old-esplora\n" +
+		"LOG_LEVEL=info\n" +
+		"WORK_DIR=/opt/albyhub/data\n"
+	got, _ := os.ReadFile(path)
+	if string(got) != want {
+		t.Fatalf("Apply changed unrelated content.\n got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestEnvStoreGetReturnsPresentManagedKeys(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "albyhub.env")
 	content := "RELAY=wss://r\nUNRELATED=x\nLN_BACKEND_TYPE=LDK\n"

@@ -28,7 +28,7 @@ func TestDefaultValues(t *testing.T) {
 	if c.Connectivity.PrimaryURL != "https://getalby.com/api/internal/info" {
 		t.Errorf("default primary URL = %q", c.Connectivity.PrimaryURL)
 	}
-	if c.Connectivity.FallbackURL != "https://www.google.com/generate_204" {
+	if c.Connectivity.FallbackURL != "http://connectivitycheck.gstatic.com/generate_204" {
 		t.Errorf("default fallback URL = %q", c.Connectivity.FallbackURL)
 	}
 	if c.ProbeTimeout() != 5*time.Second {

@@ -6,6 +6,16 @@ Wants=NetworkManager.service
 
 [Service]
 Type=simple
+# Wait for NetworkManager to finish startup (devices managed), and make sure the
+# WiFi radio is usable: a fresh Pi image often has wlan0 rfkill-soft-blocked, and
+# AP mode needs the radio on. The leading "-" makes each step non-fatal.
+#
+# NOTE: AP mode also requires a WiFi regulatory country to be set on the image
+# (e.g. via raspi-config / `iw reg set XX` / wpa_supplicant country=) — without
+# one, hostapd/AP creation can silently fail.
+ExecStartPre=-/usr/sbin/rfkill unblock wifi
+ExecStartPre=-/usr/bin/nm-online -s -q -t 30
+ExecStartPre=-/usr/bin/nmcli radio wifi on
 ExecStart=/usr/local/bin/hub-os-config run
 Restart=on-failure
 RestartSec=5

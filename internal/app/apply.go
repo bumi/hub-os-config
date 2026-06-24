@@ -40,7 +40,7 @@ func (a *App) Save(req web.SaveRequest) {
 func (a *App) testAndApply(ctx context.Context, req web.SaveRequest) {
 	ssid := req.WiFi.SSID
 	_ = a.deps.NM.StopHotspot(ctx) // free the single radio to connect as a station
-	if err := a.deps.NM.ConnectWiFi(ctx, ssid, req.WiFi.Password); err != nil {
+	if err := a.deps.NM.ConnectWiFi(ctx, ssid, req.WiFi.Password, req.WiFi.Hidden); err != nil {
 		_ = a.deps.NM.DeleteConnection(ctx, ssid)
 		a.failWiFi(ctx, ssid, "incorrect password or could not connect")
 		return
