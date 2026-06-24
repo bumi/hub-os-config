@@ -115,14 +115,20 @@ func (a *App) Boot(ctx context.Context) (Mode, error) {
 		online = a.waitForConnectivity(ctx)
 	}
 
+	ssid, _ := a.deps.NM.CurrentSSID(ctx)
+	log.Printf("boot: wifiConfigured=%v associatedSSID=%q internetReachable=%v", configured, ssid, online)
+
 	switch decideInitialMode(configured, online) {
 	case ModeNormal:
+		log.Printf("boot: entering Normal Mode")
 		return ModeNormal, a.enterNormal(ctx)
 	default:
 		var attempt *config.Attempt
 		if configured && !online {
-			ssid, _ := a.deps.NM.CurrentSSID(ctx)
 			attempt = &config.Attempt{SSID: ssid, Result: "failed", Reason: "could not reach the internet"}
+			log.Printf("boot: WiFi configured (associated=%q) but no internet — entering Setup Mode (AP)", ssid)
+		} else {
+			log.Printf("boot: no WiFi configured — entering Setup Mode (AP)")
 		}
 		return ModeSetup, a.enterSetup(ctx, attempt)
 	}
@@ -133,7 +139,9 @@ func (a *App) Boot(ctx context.Context) (Mode, error) {
 // online (enabling the runtime grace window later).
 func (a *App) waitForConnectivity(ctx context.Context) bool {
 	for i := 0; i < a.deps.BootProbeAttempts; i++ {
-		if a.deps.Monitor.Observe(a.deps.Prober.Online(ctx)) {
+		ok := a.deps.Prober.Online(ctx)
+		log.Printf("boot: connectivity probe %d/%d: online=%v", i+1, a.deps.BootProbeAttempts, ok)
+		if a.deps.Monitor.Observe(ok) {
 			return true
 		}
 		if i < a.deps.BootProbeAttempts-1 {

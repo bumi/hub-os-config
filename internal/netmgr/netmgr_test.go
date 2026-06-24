@@ -168,6 +168,18 @@ func TestConnectWiFiOpenNetworkOmitsPassword(t *testing.T) {
 	}
 }
 
+func TestConnectWiFiEnforcesAutoconnect(t *testing.T) {
+	r := &fakeRunner{}
+	nm := testNM(r)
+
+	if err := nm.ConnectWiFi(context.Background(), "HomeWiFi", "supersecret", false); err != nil {
+		t.Fatalf("ConnectWiFi: %v", err)
+	}
+	if !r.calledWith("connection modify") || !r.calledWith("connection.autoconnect yes") {
+		t.Errorf("expected autoconnect to be enforced so it reconnects on reboot: %v", r.calls)
+	}
+}
+
 func TestConnectWiFiHiddenPassesHiddenYes(t *testing.T) {
 	r := &fakeRunner{}
 	nm := testNM(r)

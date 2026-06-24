@@ -7,6 +7,7 @@ package netmgr
 import (
 	"context"
 	"fmt"
+	"log"
 	"sort"
 	"strconv"
 	"strings"
@@ -100,6 +101,14 @@ func (n *NM) ConnectWiFi(ctx context.Context, ssid, psk string, hidden bool) err
 	}
 	if _, err := n.nmcli(ctx, args...); err != nil {
 		return fmt.Errorf("connecting to %q: %w", ssid, err)
+	}
+	// `device wifi connect` names the created profile after the SSID. Explicitly
+	// enforce autoconnect so NetworkManager reconnects to it on the next boot
+	// (don't rely on the version-dependent default). Non-fatal — the device is
+	// already connected for the verification step.
+	if _, err := n.nmcli(ctx, "connection", "modify", ssid,
+		"connection.autoconnect", "yes", "connection.autoconnect-priority", "100"); err != nil {
+		log.Printf("warning: could not enforce autoconnect on %q: %v", ssid, err)
 	}
 	return nil
 }
